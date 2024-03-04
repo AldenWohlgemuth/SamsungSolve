@@ -5,9 +5,31 @@ import time
 from gtts import gTTS
 import os
 import speech_recognition as sr
+import pyaudio
+import RPi.GPIO as GPIO
+
+#buttons
+OPTION_1 = 5
+OPTION_2 = 6
+OPTION_3 = 13
+OPTION_4 = 19
+REFRESH = 26
+GPIO.setmode(GPIO.BCM)
+
+GPIO.setup(OPTION_1, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(OPTION_2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(OPTION_3, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(OPTION_4, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(REFRESH, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+previous_option1_state = GPIO.input(OPTION_1)
+previous_option2_state = GPIO.input(OPTION_2)
+previous_option3_state = GPIO.input(OPTION_3)
+previous_option4_state = GPIO.input(OPTION_4)
+previous_refresh_state = GPIO.input(REFRESH)
 
 #create ai model
-client = OpenAI(api_key="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")
+client = OpenAI(api_key="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")
 assistant = client.beta.assistants.retrieve("asst_5vZDiGTQa8b4RnALXLaCUjhP")
 
 question = ""
@@ -67,6 +89,12 @@ class Ui_mainWindow(object):
         self.statusbar.setObjectName("statusbar")
         mainWindow.setStatusBar(self.statusbar)
 
+        self.pushButton_1.setStyleSheet("QPushButton { background-color: #ff6e6e; color: black; }")
+        self.pushButton_2.setStyleSheet("QPushButton { background-color: #ffa66e; color: black; }")
+        self.pushButton_3.setStyleSheet("QPushButton { background-color: #7fff6e; color: black; }")
+        self.pushButton_4.setStyleSheet("QPushButton { background-color: #6e92ff; color: black; }")
+        self.Refresh.setStyleSheet("QPushButton { background-color: #ffffff; color: black; }")
+
         self.retranslateUi(mainWindow)
         QtCore.QMetaObject.connectSlotsByName(mainWindow)
 
@@ -94,6 +122,9 @@ def listen_for_question():
             # Recognize speech using Google Speech Recognition
             global question
             question = recognizer.recognize_google(audio)
+            print(question)
+
+
             ui.Refresh.setEnabled(False)
             ui.pushButton_1.setEnabled(False)
             ui.pushButton_2.setEnabled(False)
@@ -129,7 +160,7 @@ def readOut(read):
     myobj.save("output.mp3")
 
     #Open wav with default mediaplayer
-    os.system("output.mp3")
+    os.system("mpg123 output.mp3")
 
 #get responses from question variable
 def getResponses(que):
@@ -165,16 +196,16 @@ def getResponses(que):
         for content in message.content:
             if content.type == 'text':
                 response = content.text.value 
-                answer = stringed(f'{response}')
+                answer = stringed('{}'.format(response))
     return answer
 
 def update():
     array = getResponses(question)
 
-    ui.pushButton_1.setText(f"1. {array[0]}")
-    ui.pushButton_2.setText(f"2. {array[1]}")
-    ui.pushButton_3.setText(f"3. {array[2]}")
-    ui.pushButton_4.setText(f"4. {array[3]}")
+    ui.pushButton_1.setText("1. {}".format(array[0]))
+    ui.pushButton_2.setText("2. {}".format(array[1]))
+    ui.pushButton_3.setText("3. {}".format(array[2]))
+    ui.pushButton_4.setText("4. {}".format(array[3]))
     
     ui.Refresh.setEnabled(True)
     ui.pushButton_1.setEnabled(True)
@@ -187,6 +218,7 @@ if __name__ == "__main__":
     import sys
     import threading
 
+    os.close(sys.stderr.fileno())
     app = QtWidgets.QApplication(sys.argv)
     mainWindow = QtWidgets.QMainWindow()
     ui = Ui_mainWindow()
@@ -197,5 +229,36 @@ if __name__ == "__main__":
     listener_thread = threading.Thread(target=listen_for_question)
     listener_thread.daemon = True  # Set the thread as a daemon so it will exit when the main program exits
     listener_thread.start()
+
+    try:
+        while True:
+            time.sleep(0.1)
+            option1_state = GPIO.input(OPTION_1)
+            option2_state = GPIO.input(OPTION_2)
+            option3_state = GPIO.input(OPTION_3)
+            option4_state = GPIO.input(OPTION_4)
+            refresh_state = GPIO.input(REFRESH)
+            if option1_state != previous_option1_state:
+                previous_option1_state = option1_state
+                if option1_state == GPIO.LOW:
+                    print("OPTION_1 has just been pressed")
+            if option2_state != previous_option2_state:
+                previous_option2_state = option2_state
+                if option2_state == GPIO.LOW:
+                    print("OPTION_2 has just been pressed")
+            if option3_state != previous_option3_state:
+                previous_option3_state = option3_state
+                if option3_state == GPIO.LOW:
+                    print("OPTION_3 has just been pressed")
+            if option4_state != previous_option4_state:
+                previous_option4_state = option4_state
+                if option4_state == GPIO.LOW:
+                    print("OPTION_4 has just been pressed")
+            if refresh_state != previous_refresh_state:
+                previous_refresh_state = refresh_state
+                if refresh_state == GPIO.LOW:
+                    print("REFRESH has just been pressed")
+    except KeyboardInterrupt:
+        GPIO.cleanup()
 
     sys.exit(app.exec_())
